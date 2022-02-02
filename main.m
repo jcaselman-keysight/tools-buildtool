@@ -131,45 +131,53 @@ main(int argc, const char *argv[])
     {
       function = @"build"; // default action...
     }
-  
-  NSString *display = [function stringByCapitalizingFirstCharacter];
-  SEL operation = NSSelectorFromString(function);
 
-  if (isProject)
+  NS_DURING
     {
-      // Unarchive...
-      coder = [[PBXCoder alloc] initWithContentsOfFile: fileName];
-      container = [coder unarchive];
+      NSString *display = [function stringByCapitalizingFirstCharacter];
+      SEL operation = NSSelectorFromString(function);
       
-      // Build...
-      if ([container respondsToSelector: operation])
-        {        
-          // build...
-          puts([[NSString stringWithFormat: @"\033[1;32m**\033[0m Start operation %@", display] cString]); 
-          if ([container performSelector: operation])
-            {
-              puts([[NSString stringWithFormat: @"\033[1;32m**\033[0m %@ Succeeded", display] cString]);
-            }
-          else
-            {
-              puts([[NSString stringWithFormat: @"\033[1;31m**\033[0m %@ Failed", display] cString]);
-            }
-        }
+      if (isProject)
+	{
+	  // Unarchive...
+	  coder = [[PBXCoder alloc] initWithContentsOfFile: fileName];
+	  container = [coder unarchive];
+	  
+	  // Build...
+	  if ([container respondsToSelector: operation])
+	    {        
+	      // build...
+	      puts([[NSString stringWithFormat: @"\033[1;32m**\033[0m Start operation %@", display] cString]); 
+	      if ([container performSelector: operation])
+		{
+		  puts([[NSString stringWithFormat: @"\033[1;32m**\033[0m %@ Succeeded", display] cString]);
+		}
+	      else
+		{
+		  puts([[NSString stringWithFormat: @"\033[1;31m**\033[0m %@ Failed", display] cString]);
+		}
+	    }
+	  else
+	    {
+	      puts([[NSString stringWithFormat: @"Unknown build operation \"%@",display] cString]);
+	    }
+	}
       else
-        {
-          puts([[NSString stringWithFormat: @"Unknown build operation \"%@",display] cString]);
-        }
+	{
+	  XCWorkspaceParser *p = [XCWorkspaceParser parseWorkspaceFile: fileName];
+	  XCWorkspace *w = [p workspace];
+	  
+	  if ([w respondsToSelector: operation])
+	    {
+	      [w performSelector: operation];
+	    }
+	}
     }
-  else
+  NS_HANDLER
     {
-      XCWorkspaceParser *p = [XCWorkspaceParser parseWorkspaceFile: fileName];
-      XCWorkspace *w = [p workspace];
-      
-      if ([w respondsToSelector: operation])
-        {
-          [w performSelector: operation];
-        }
+      NSLog(@"%@", localException);
     }
+  NS_ENDHANDLER;
   
   // The end...
   [pool release];
