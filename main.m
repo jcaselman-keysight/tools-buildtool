@@ -49,99 +49,120 @@ findWorkspaceFilename(NSArray *projectDirEntries)
   return nil;
 }
 
-int
-main(int argc, const char *argv[])
+NSString *
+resolveProjectName(BOOL *isProject)
 {
-  if(argc == 0)
+  NSString      *fileName = nil;
+  NSFileManager *fileManager = [NSFileManager defaultManager];
+  NSString      *projectDir = [fileManager currentDirectoryPath];
+  NSArray       *projectDirEntries = [fileManager directoryContentsAtPath: projectDir];
+
+  fileName = findWorkspaceFilename(projectDirEntries);
+  if (fileName != nil)
     {
-      return 0;
+      *isProject = NO;
+    }
+  else
+    {
+      *isProject = YES;
+      fileName = findProjectFilename(projectDirEntries);
     }
 
-  setlocale(LC_ALL, "en_US.utf8");
-  id pool = [[NSAutoreleasePool alloc] init];
+  return fileName;
+}
+
+int main(int argc, const char *argv[])
+{
+  NSAutoreleasePool          *pool = [[NSAutoreleasePool alloc] init];
   NSString                   *fileName = nil;
   NSString                   *function = nil; 
   PBXCoder                   *coder = nil;
   PBXContainer               *container = nil;
-  NSString                   *projectDir;
-  NSArray                    *projectDirEntries;
-  NSFileManager              *fileManager = [NSFileManager defaultManager];
   BOOL                        isProject = NO;
-  const char *arg = NULL;
+  NSString                   *argument = @"build";
+  NSProcessInfo              *pi = [NSProcessInfo processInfo];
+  NSMutableArray             *args = [NSMutableArray arrayWithArray: [pi arguments]];
+  NSString                   *parameter = nil;
   
-  projectDir        = [fileManager currentDirectoryPath];
-  projectDirEntries = [fileManager directoryContentsAtPath: projectDir];
+  setlocale(LC_ALL, "en_US.utf8");
 
-  if (argc > 1)
+  // Get filename
+  if ([args count] > 1)
     {
-      arg = argv[1];
-    }
-  else
-    {
-      arg = "build";
-    }
-
-  // Get the project...
-  if(arg != NULL)
-    {
-      NSString *argument = [NSString stringWithCString: arg];
-
-      if ([argument isEqualToString: @"build"] ||
-          [argument isEqualToString: @"install"] ||
-          [argument isEqualToString: @"clean"])
+      NSString *ext = [argument pathExtension];
+      
+      argument = [args objectAtIndex: 1]; // consume argument...
+      if ([ext isEqualToString: @"xcworkspace"])
         {
-          function = argument;
-          fileName = findWorkspaceFilename(projectDirEntries);
-          if (fileName != nil)
-            {
-              isProject = NO;
-            }
-          else
-            {
-              isProject = YES;
-              fileName = findProjectFilename(projectDirEntries);
-            }
+          ASSIGN(fileName, argument);
+          [args removeObjectAtIndex: 1];
+          isProject = NO;
+        } 
+      else if ([ext isEqualToString: @"xcodeproj"])
+        {
+          ASSIGN(fileName, argument);
+          [args removeObjectAtIndex: 1];                   
+          isProject = YES;
+        }
+
+      if (fileName != nil)
+        {
+          fileName = [fileName stringByAppendingPathComponent: 
+                                 @"project.pbxproj"];
         }
       else
         {
-          fileName = [argument stringByAppendingPathComponent: 
-                                 @"project.pbxproj"];
-          if([[argument pathExtension] isEqualToString:@"xcodeproj"] == NO)
-            {
-              fileName = findProjectFilename(projectDirEntries);
-              function = [NSString stringWithCString: argv[1]];
-              isProject = YES;
-            }
-          else  if([[argument pathExtension] isEqualToString:@"xcworkspace"] == NO)
-            {
-              fileName = findWorkspaceFilename(projectDirEntries);
-              function = [NSString stringWithCString: argv[1]];
-              isProject = NO;
-            }
-          
-	  // If there is a project, add the build operation...
-	  if(argv[2] != NULL && argc > 1)
-	    {
-	      function = [NSString stringWithCString: argv[2]];
-	    }
+          fileName = resolveProjectName(&isProject);
         }
     }
 
-  if([function isEqualToString: @""] || function == nil)
+  if ([args count] > 1)
+    {
+      argument = [args objectAtIndex: 1];
+
+      if ([argument isEqualToString: @"build"] ||
+          [argument isEqualToString: @"install"] ||
+          [argument isEqualToString: @"clean"] ||
+          [argument isEqualToString: @"generate"])
+        {
+          ASSIGN(function, argument);
+          [args removeObjectAtIndex: 1];
+        }
+    }
+
+  if ([args count] > 1)
+    {
+      ASSIGN(parameter, [args objectAtIndex: 1]);
+      [args removeObjectAtIndex: 1];
+    }
+  
+  if ([function isEqualToString: @""] || function == nil)
     {
       function = @"build"; // default action...
+    }
+
+  // If the paramter is empty then make default to Makefile...
+  if ([function isEqualToString: @"generate"] && parameter == nil)
+    {
+      parameter = @"Makefile";
     }
 
   NS_DURING
     {
       NSString *display = [function stringByCapitalizingFirstCharacter];
       SEL operation = NSSelectorFromString(function);
+
+      if (fileName == nil)
+        {
+          fileName = resolveProjectName(&isProject);
+        }
       
       if (isProject)
 	{
 	  // Unarchive...
 	  coder = [[PBXCoder alloc] initWithContentsOfFile: fileName];
 	  container = [coder unarchive];
+          [container setParameter: parameter];
 	  
 	  // Build...
 	  if ([container respondsToSelector: operation])
