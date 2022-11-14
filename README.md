@@ -1,5 +1,10 @@
-buildtool
+buildtool (DEPRECATED... PLEASE SEE VERSION IN LIBS-XCODE)
 --
+NOTE: The contents of this library have been moved to libs-xcode/Tools. 
+This is no longer the official repo for buildtool.  This version of the tool
+is deprecated and may not build with current versions of the library.  This
+repository will be removed at some point in the future.
+
 The purpose of this tool is to duplicate the functionality of xcodebuild.
 The associated library for this tool is libs-xcode.   This library provides
 the means of parsing and "executing" the build.
